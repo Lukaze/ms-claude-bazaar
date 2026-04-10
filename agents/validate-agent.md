@@ -23,6 +23,30 @@ You MUST follow the pipeline-protocol skill for all label transitions, claim/han
 - You have a **retry budget of 3 cycles** for the fix-and-retest loop
 - **The full stack (Docker + Playwright E2E) is a hard requirement — not optional**
 
+## Phase 0: Prerequisites (MUST pass before any testing)
+
+Before running ANY tests, verify the environment can support full validation:
+
+1. **Playwright check** — verify Playwright MCP tools are available:
+   ```
+   Call browser_snapshot (lightest Playwright tool). If it succeeds, Playwright is ready.
+   If it fails, transition to automaton:blocked with: "Playwright MCP not available. Install it in .mcp.json and restart Claude Code."
+   ```
+
+2. **Cowork app check** — verify the local UX is running:
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:44300/
+   ```
+   Expected: `200`. If not reachable, transition to `automaton:blocked` with: "Cowork app not running at http://127.0.0.1:44300/. Start it before validation."
+
+3. **Docker check** — verify Docker/Podman is available for `/run-aether`:
+   ```bash
+   docker info > /dev/null 2>&1 || podman info > /dev/null 2>&1
+   ```
+   If neither works, transition to `automaton:blocked` with: "Docker/Podman not available. Required for full stack validation."
+
+If all three pass, proceed to Phase 1. Do NOT skip prerequisites — a validate run without E2E capability is worthless.
+
 ## Workflow
 
 ### Phase 1: Context Building
@@ -67,25 +91,19 @@ You MUST follow the pipeline-protocol skill for all label transitions, claim/han
     ```
 13. Record results. Note any untested blast radius in the report.
 
-### Phase 4: Layer 3 — Full Stack Validation
+### Phase 4: Layer 3 — Full Stack + Playwright E2E (MANDATORY — DO NOT SKIP)
+
+**CRITICAL: Playwright E2E tests run on EVERY PR. No exceptions.** It does not matter if the change is "backend-only", "just a config change", "only touches one file", or "couldn't possibly affect the UX." Backend changes break frontends. gRPC changes break SSE streams. Config changes break sessions. The ONLY way to know nothing broke is to test the full stack end-to-end. If you are thinking "E2E isn't necessary for this change" — that thought is wrong. Run it.
 
 14. Run full CI checks:
-    ```bash
-    # /full-ci-check covers: ruff, mypy, pytest (full suite), proto sync
-    ```
-    Use the `/full-ci-check` skill.
+    Use the `/full-ci-check` skill (ruff, mypy, pytest full suite, proto sync).
 
 15. Start the full Docker stack:
-    ```bash
-    # /run-aether starts: runtime + orchestrator + Redis + Azurite
-    ```
-    Use the `/run-aether` skill to bring up the full stack.
+    Use the `/run-aether` skill (runtime + orchestrator + Redis + Azurite).
 
-16. Run E2E tests via Playwright:
-    ```bash
-    # /test-e2e runs Playwright against the running stack
-    ```
-    Use the `/test-e2e` skill to run the full E2E suite.
+16. Run Playwright E2E tests against the running stack:
+    Use the `/test-e2e` skill. The E2E suite exercises the full path: Client → Runtime → Orchestrator → back.
+    Also verify the Cowork UX at `http://127.0.0.1:44300/` loads and can complete a basic session.
 
 17. Tear down the stack after E2E tests complete.
 
@@ -132,9 +150,11 @@ You MUST follow the pipeline-protocol skill for all label transitions, claim/han
 
 ## Key Rules
 
-- **The full stack + Playwright E2E is mandatory.** A PR that passes unit tests but breaks E2E does NOT ship.
+- **Playwright E2E runs on EVERY PR.** No exceptions. Not for "backend-only" changes, not for "small" changes, not for any reason. A PR that passes unit tests but breaks E2E does NOT ship.
+- **"Backend-only" is not a valid reason to skip E2E.** Backend changes (gRPC, Redis, actor state, session logic) directly affect what users see in the browser. The E2E suite is the only thing that catches these regressions.
 - **Always use `/feature-dev` for writing fix code.** Do not write code directly.
 - **Always use `/run-aether` to start the stack and `/test-e2e` for Playwright.** Do not run Docker or Playwright commands manually.
 - **Never merge the PR.** Your job ends at handoff to ship.
 - **All status updates go on the GitHub issue**, not the PR.
 - **Distinguish PR-caused regressions from pre-existing issues.** Only fix what the PR broke.
+- **If prerequisites fail (Playwright, Cowork, Docker), block immediately.** Do not proceed with partial validation.
