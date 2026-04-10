@@ -63,16 +63,31 @@ If all three pass, proceed to Phase 1. Do NOT skip prerequisites — a validate 
    ```
 5. Post a comment on the issue: "Starting validation. Analyzing diff for blast radius."
 
+## Test Execution Rules
+
+**CRITICAL: pytest commands MUST use `timeout: 600000` (10 minutes).** The default 2-minute bash timeout will kill test runs mid-execution, causing background processes and floundering. Every pytest invocation must set this explicitly.
+
+```bash
+# CORRECT — always set timeout
+pytest <files> -v --tb=short  # with timeout: 600000
+
+# WRONG — will hit 2-minute default and go to background
+pytest <files> -v --tb=short  # no timeout specified
+```
+
+If a test run unexpectedly goes to background, use `TaskOutput` to read its results. Do NOT retry the same command — read the output that's already being produced.
+
 ### Phase 2: Layer 1 — Targeted Tests
 
 6. From the PR diff, identify all changed files
 7. Map changed files to their directly-related test files:
    - `aether_runtime/foo/bar.py` → `aether_runtime/tests/unit/test_bar.py`
    - Check `tests/unit/`, `tests/integration/` in the same component
-8. Run only these targeted tests:
+8. Run only these targeted tests (with 10-minute timeout):
    ```bash
    pytest <targeted-test-files> -v --tb=short
    ```
+   Use `timeout: 600000` on the Bash call.
 9. Record results. If failures, note them for the report.
 
 ### Phase 3: Layer 2 — Blast Radius Analysis
@@ -85,23 +100,33 @@ If all three pass, proceed to Phase 1. Do NOT skip prerequisites — a validate 
     - **Directly affected tests** (from Phase 2)
     - **Transitively affected tests** (imports, call graphs, shared utilities)
     - **Untested blast radius** (changed code paths with no test coverage)
-12. Run the transitively affected tests:
+12. Run the transitively affected tests (with 10-minute timeout):
     ```bash
     pytest <transitive-test-files> -v --tb=short
     ```
+    Use `timeout: 600000` on the Bash call.
 13. Record results. Note any untested blast radius in the report.
 
-### Phase 4: Layer 3 — Full Stack + Playwright E2E (MANDATORY — DO NOT SKIP)
+### Phase 4: Layer 3 — Lint + Type Check + Full Stack E2E (MANDATORY — DO NOT SKIP)
 
 **CRITICAL: Playwright E2E tests run on EVERY PR. No exceptions.** It does not matter if the change is "backend-only", "just a config change", "only touches one file", or "couldn't possibly affect the UX." Backend changes break frontends. gRPC changes break SSE streams. Config changes break sessions. The ONLY way to know nothing broke is to test the full stack end-to-end. If you are thinking "E2E isn't necessary for this change" — that thought is wrong. Run it.
 
-14. Run full CI checks:
-    Use the `/full-ci-check` skill (ruff, mypy, pytest full suite, proto sync).
+**Layer 3 does NOT re-run the full pytest suite.** Layers 1 and 2 already covered the changed code paths and their transitive dependents. Layer 3 focuses on:
 
-15. Start the full Docker stack:
+14. **Lint + type check** (fast, <30s each):
+    ```bash
+    ruff check <component>/ --ignore I001
+    mypy --config-file <component>/pyproject.toml <component>/
+    ```
+    Also run proto sync check if `.proto` files changed:
+    ```bash
+    python scripts/regenerate-protos.py --check
+    ```
+
+15. **Start the full Docker stack:**
     Use the `/run-aether` skill (runtime + orchestrator + Redis + Azurite).
 
-16. Run Playwright E2E tests against the running stack:
+16. **Run Playwright E2E tests against the running stack:**
     Use the `/test-e2e` skill. The E2E suite exercises the full path: Client → Runtime → Orchestrator → back.
     Also verify the Cowork UX at `http://127.0.0.1:44300/` loads and can complete a basic session.
 
