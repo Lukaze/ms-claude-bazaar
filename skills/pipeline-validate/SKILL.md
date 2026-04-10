@@ -13,7 +13,7 @@ Polling loop that watches for `automaton:ready-to-validate` issues and dispatche
 
 ## Polling Cycle
 
-Each invocation performs ONE cycle:
+Each invocation performs ONE cycle. Dispatches are **fire-and-forget** — the cycle does NOT wait for the agent to finish.
 
 ### Step 1: Detect Repo
 
@@ -21,7 +21,23 @@ Each invocation performs ONE cycle:
 REPO=$(gh repo view --json nameWithOwner -q '.nameWithOwner')
 ```
 
-### Step 2: Find Work
+### Step 2: Check Stale In-Flight Agents
+
+Check for issues stuck in `automaton:validating`:
+
+```bash
+gh issue list \
+  --label "automaton:pipeline" \
+  --label "automaton:validating" \
+  --assignee "@me" \
+  --state open \
+  --json number,title,updatedAt,labels \
+  --repo "$REPO"
+```
+
+For each: if >30 minutes since last `🤖 Automaton` comment with no transition, mark `automaton:blocked` with stale agent comment.
+
+### Step 3: Find Work
 
 Query for issues that are ready for validation and assigned to you:
 
@@ -35,13 +51,13 @@ gh issue list \
   --repo "$REPO"
 ```
 
-### Step 3: Triage
+### Step 4: Triage
 
 If **no issues found:** Exit cleanly.
 
 If **multiple issues found:** Pick the oldest one (lowest issue number).
 
-### Step 4: Check for Blocked Recovery
+### Step 5: Check for Blocked Recovery
 
 Same as pipeline-implement, but for validation-related states:
 - Check for `automaton:pipeline`-only issues (no state label)
@@ -49,7 +65,7 @@ Same as pipeline-implement, but for validation-related states:
 - If `Last state before blocked` is `automaton:ready-to-validate` or `automaton:validating`, restore `automaton:ready-to-validate`
 - Otherwise, skip (belongs to a different agent)
 
-### Step 5: Extract PR Number
+### Step 6: Extract PR Number
 
 1. Read the issue comments to find the most recent `🤖 Automaton Handoff` comment
 2. Extract the PR number from the handoff comment (`**PR:** #<number>`)
@@ -58,7 +74,7 @@ Same as pipeline-implement, but for validation-related states:
 
 **Note:** The implement agent may have pushed to an existing design PR (not created a new one). The PR number in the handoff comment is the source of truth.
 
-### Step 6: Claim and Dispatch
+### Step 7: Claim and Dispatch (Fire-and-Forget)
 
 For the selected issue:
 
@@ -73,17 +89,10 @@ For the selected issue:
    - PR number (from handoff comment)
    - Handoff context (changed files, suggested test focus)
 
-3. The validate-agent handles three-layer testing through handoff.
-
-### Step 7: Post-Dispatch
-
-After the validate-agent completes:
-- Verify the issue has been transitioned to `automaton:ready-to-ship`, `automaton:ready-to-validate` (re-review loop), or `automaton:blocked`
-- If the agent crashed without transitioning, apply `automaton:blocked` with error details
+3. **Exit immediately.** Do NOT wait for the agent to complete. The next tick checks for stale agents via Step 2.
 
 ## Error Handling
 
 - If `gh` commands fail, log and exit. Loop retries next tick.
-- If validate-agent crashes, label `automaton:blocked` with crash details.
-- If Docker stack fails to start, the validate-agent handles this (transitions to blocked). The polling skill doesn't need to manage Docker.
-- Never leave an issue in `automaton:validating` without an active agent.
+- If validate-agent dispatch itself fails, apply `automaton:blocked` with error details.
+- Step 2 handles stale agents — if an agent crashes without transitioning, it gets blocked after 30 minutes.
