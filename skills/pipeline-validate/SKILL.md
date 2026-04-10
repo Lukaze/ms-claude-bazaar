@@ -49,17 +49,14 @@ Same as pipeline-implement, but for validation-related states:
 - If `Last state before blocked` is `automaton:ready-to-validate` or `automaton:validating`, restore `automaton:ready-to-validate`
 - Otherwise, skip (belongs to a different agent)
 
-### Step 5: Pre-Claim Verification
+### Step 5: Extract PR Number
 
-Before claiming, verify the PR has the required reviews:
+1. Read the issue comments to find the most recent `🤖 Automaton Handoff` comment
+2. Extract the PR number from the handoff comment (`**PR:** #<number>`)
+3. If no handoff comment exists, also check the issue body for a `PR #` reference
+4. If no PR number can be found, skip this issue — it may have been transitioned incorrectly
 
-1. Read the most recent handoff comment to get the PR number
-2. Check PR reviews:
-   ```bash
-   gh pr view <PR_NUMBER> --json reviews --repo "$REPO"
-   ```
-3. Required: Automaton (lukas) approval + 1 other approval
-4. If reviews are not present, **do not claim**. Exit and let the next tick check again. The implement agent already requested reviews — they just haven't landed yet.
+**Note:** The implement agent may have pushed to an existing design PR (not created a new one). The PR number in the handoff comment is the source of truth.
 
 ### Step 6: Claim and Dispatch
 
