@@ -1,12 +1,12 @@
 {
-  "name": "ms-claude-bazaar",
+  "name": "plugin-repo",
   "description": "Autonomous dev pipeline for Claude Code: design → implement → validate → ship, orchestrated through GitHub issue labels",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "author": {
     "name": "Lukaze"
   },
-  "homepage": "https://github.com/Lukaze/ms-claude-bazaar",
-  "repository": "https://github.com/Lukaze/ms-claude-bazaar",
+  "homepage": "https://github.com/Lukaze/plugin-repo",
+  "repository": "https://github.com/Lukaze/plugin-repo",
   "license": "MIT",
   "keywords": ["pipeline", "automation", "agents", "testing", "validation", "shipping"]
 }

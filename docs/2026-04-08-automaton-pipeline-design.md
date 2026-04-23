@@ -101,7 +101,7 @@ Exhausted budget → `automaton:blocked` + detailed comment.
 ## Plugin Structure
 
 ```
-ms-claude-bazaar/
+plugin-repo/
 ├── .claude-plugin/plugin.json
 ├── skills/
 │   ├── pipeline-protocol/SKILL.md     (shared protocol, not user-invocable)
