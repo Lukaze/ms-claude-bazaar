@@ -1,14 +1,14 @@
 {
-  "name": "ms-claude-bazaar",
+  "name": "plugin-repo",
   "description": "Autonomous dev pipeline plugins for Claude Code",
   "owner": {
     "name": "Lukaze"
   },
   "plugins": [
     {
-      "name": "ms-claude-bazaar",
+      "name": "plugin-repo",
       "description": "Autonomous dev pipeline: design → implement → validate → ship, orchestrated through GitHub issue labels",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "source": "./",
       "author": {
         "name": "Lukaze"

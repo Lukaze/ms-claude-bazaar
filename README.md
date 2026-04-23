@@ -1,4 +1,4 @@
-# ms-claude-bazaar
+# plugin-repo
 
 Autonomous dev pipeline plugin for Claude Code CLI.
 
